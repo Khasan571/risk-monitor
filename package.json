@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://xasannematov.github.io/risk-monitor",
+  "homepage": "https://khasan571.github.io/risk-monitor",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

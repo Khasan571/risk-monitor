@@ -4,7 +4,9 @@ import Dashboard from './components/Dashboard';
 import RiskTable from './components/RiskTable';
 import Settings from './components/Settings';
 import Login from './components/Login';
-import { riskIndicators as initialIndicators, riskCategories } from './data/riskData';
+import { riskCategories } from './data/riskData';
+import { universities, months, courses, allIndicators, getStats } from './data/universitiesData';
+import { searchStudents, getStudentIndicators, getStudentDetails, students, getStudentsByUniversity, getProblematicStudents } from './data/studentsData';
 
 const SearchIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -65,6 +67,55 @@ const UserAvatarIcon = () => (
   </svg>
 );
 
+const FilterIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+  </svg>
+);
+
+const BuildingIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/>
+    <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
+    <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
+    <path d="M10 6h4"/>
+    <path d="M10 10h4"/>
+    <path d="M10 14h4"/>
+    <path d="M10 18h4"/>
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
+const GraduationIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+    <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/>
+  </svg>
+);
+
+const PersonSearchIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="10" cy="7" r="4"/>
+    <path d="M10 14c-4 0-7 2-7 4v2h10"/>
+    <circle cx="18" cy="18" r="3"/>
+    <path d="M21 21l-1.5-1.5"/>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M18 6L6 18M6 6l12 12"/>
+  </svg>
+);
+
 function App() {
   // Authentication state
   const [user, setUser] = useState(() => {
@@ -78,7 +129,19 @@ function App() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [indicators, setIndicators] = useState(initialIndicators);
+  const [indicators, setIndicators] = useState(allIndicators);
+
+  // New filters
+  const [selectedUniversity, setSelectedUniversity] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedCourse, setSelectedCourse] = useState('all');
+
+  // Student search
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSearchResults, setStudentSearchResults] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
   const [theme, setTheme] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
     return savedTheme || 'dark';
@@ -163,12 +226,63 @@ function App() {
     setIsRefreshing(false);
   };
 
-  const filteredIndicators = indicators.filter((indicator) => {
-    const matchesCategory = activeCategory === 'all' || indicator.category === activeCategory;
-    const matchesSearch = indicator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      indicator.dataSource.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Student search handler
+  const handleStudentSearch = (query) => {
+    setStudentSearchQuery(query);
+    if (query.length >= 2) {
+      const results = searchStudents(query, selectedUniversity);
+      setStudentSearchResults(results);
+      setShowStudentDropdown(true);
+    } else {
+      setStudentSearchResults([]);
+      setShowStudentDropdown(false);
+    }
+  };
+
+  // Select student handler
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student);
+    setStudentSearchQuery(student.fullName);
+    setShowStudentDropdown(false);
+  };
+
+  // Clear student selection
+  const clearStudentSelection = () => {
+    setSelectedStudent(null);
+    setStudentSearchQuery('');
+    setStudentSearchResults([]);
+  };
+
+  // Get indicators based on student selection
+  const getDisplayIndicators = () => {
+    // If a student is selected, show their specific indicators
+    if (selectedStudent && activeCategory === 'talaba') {
+      return getStudentIndicators(selectedStudent.id);
+    }
+
+    // Otherwise filter from all indicators
+    return indicators.filter((indicator) => {
+      const matchesCategory = activeCategory === 'all' || indicator.category === activeCategory;
+      const matchesSearch = indicator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        indicator.dataSource.toLowerCase().includes(searchQuery.toLowerCase());
+
+      // Global indikatorlar (talaba kategoriyasi) doim ko'rinadi
+      if (indicator.isGlobal) {
+        return matchesCategory && matchesSearch;
+      }
+
+      // Boshqa indikatorlar uchun filtrlar
+      const matchesUniversity = selectedUniversity === 'all' || indicator.university === selectedUniversity;
+      const matchesMonth = selectedMonth === 'all' || indicator.month === selectedMonth;
+      const matchesCourse = selectedCourse === 'all' || indicator.course === selectedCourse || indicator.course === 'all';
+      return matchesCategory && matchesSearch && matchesUniversity && matchesMonth && matchesCourse;
+    });
+  };
+
+  const filteredIndicators = getDisplayIndicators();
+
+  // Get current stats
+  const currentStats = getStats(filteredIndicators);
 
   const currentCategory = riskCategories.find(c => c.id === activeCategory);
   const isDashboard = activeCategory === 'all';
@@ -200,6 +314,136 @@ function App() {
     link.click();
     URL.revokeObjectURL(url);
     setShowExportMenu(false);
+  };
+
+  // Import students from Excel
+  const [importedStudents, setImportedStudents] = useState([]);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState(null);
+
+  // Test data - 20 students with school graduation year and risk analysis
+  const currentYear = new Date().getFullYear(); // 2026
+
+  const calculateExpectedCourse = (graduationYear) => {
+    // If graduated in 2022, by 2026 should be 4th year (4 years passed)
+    // If graduated in 2023, by 2026 should be 3rd year
+    // If graduated in 2024, by 2026 should be 2nd year
+    // If graduated in 2025, by 2026 should be 1st year
+    const yearsPassed = currentYear - graduationYear;
+    if (yearsPassed >= 4) return 4;
+    if (yearsPassed <= 0) return 1;
+    return yearsPassed;
+  };
+
+  const analyzeStudentRisk = (student) => {
+    const expectedCourse = calculateExpectedCourse(student.schoolGraduationYear);
+    const actualCourse = parseInt(student.course) || 1;
+    const isAtRisk = actualCourse < expectedCourse;
+    const yearsBehind = expectedCourse - actualCourse;
+    return {
+      ...student,
+      expectedCourse,
+      isAtRisk,
+      yearsBehind: isAtRisk ? yearsBehind : 0,
+      riskLevel: yearsBehind >= 2 ? 'critical' : yearsBehind === 1 ? 'warning' : 'normal'
+    };
+  };
+
+  // Sample test data - 20 students
+  const sampleTestStudents = [
+    { id: 1, hemisId: 'H2022001', fullName: 'Karimov Jasur', faculty: 'Kompyuter injiniringi', course: '2', group: '2A', schoolGraduationYear: 2022, gpa: 3.2, attendance: 85 },
+    { id: 2, hemisId: 'H2022002', fullName: 'Rahimova Dilnoza', faculty: 'Axborot texnologiyalari', course: '4', group: '4B', schoolGraduationYear: 2022, gpa: 3.8, attendance: 92 },
+    { id: 3, hemisId: 'H2023001', fullName: 'Toshmatov Bekzod', faculty: 'Dasturiy injiniring', course: '1', group: '1A', schoolGraduationYear: 2023, gpa: 2.9, attendance: 78 },
+    { id: 4, hemisId: 'H2023002', fullName: 'Norova Madina', faculty: 'Kiberxavfsizlik', course: '3', group: '3C', schoolGraduationYear: 2023, gpa: 3.5, attendance: 88 },
+    { id: 5, hemisId: 'H2024001', fullName: 'Aliyev Sardor', faculty: 'Telekommunikatsiya', course: '1', group: '1B', schoolGraduationYear: 2024, gpa: 3.1, attendance: 80 },
+    { id: 6, hemisId: 'H2024002', fullName: 'Karimova Zarina', faculty: 'Sun\'iy intellekt', course: '2', group: '2A', schoolGraduationYear: 2024, gpa: 3.6, attendance: 91 },
+    { id: 7, hemisId: 'H2022003', fullName: 'Ergashev Ulugbek', faculty: 'Kompyuter injiniringi', course: '3', group: '3A', schoolGraduationYear: 2022, gpa: 2.4, attendance: 65 },
+    { id: 8, hemisId: 'H2023003', fullName: 'Yusupova Gulnora', faculty: 'Iqtisodiyot', course: '2', group: '2B', schoolGraduationYear: 2023, gpa: 3.3, attendance: 87 },
+    { id: 9, hemisId: 'H2021001', fullName: 'Mirzayev Bobur', faculty: 'Menejment', course: '3', group: '3C', schoolGraduationYear: 2021, gpa: 2.8, attendance: 72 },
+    { id: 10, hemisId: 'H2021002', fullName: 'Saidova Feruza', faculty: 'Huquqshunoslik', course: '4', group: '4A', schoolGraduationYear: 2021, gpa: 3.7, attendance: 94 },
+    { id: 11, hemisId: 'H2022004', fullName: 'Qodirov Anvar', faculty: 'Dasturiy injiniring', course: '2', group: '2C', schoolGraduationYear: 2022, gpa: 2.1, attendance: 58 },
+    { id: 12, hemisId: 'H2025001', fullName: 'Ismoilova Shahzoda', faculty: 'Kompyuter injiniringi', course: '1', group: '1A', schoolGraduationYear: 2025, gpa: 3.9, attendance: 96 },
+    { id: 13, hemisId: 'H2023004', fullName: 'Xolmatov Rustam', faculty: 'Axborot texnologiyalari', course: '1', group: '1B', schoolGraduationYear: 2023, gpa: 2.5, attendance: 70 },
+    { id: 14, hemisId: 'H2022005', fullName: 'Tursunova Nilufar', faculty: 'Kiberxavfsizlik', course: '4', group: '4B', schoolGraduationYear: 2022, gpa: 3.4, attendance: 89 },
+    { id: 15, hemisId: 'H2024003', fullName: 'Abdullayev Shoxrux', faculty: 'Telekommunikatsiya', course: '1', group: '1C', schoolGraduationYear: 2024, gpa: 2.7, attendance: 75 },
+    { id: 16, hemisId: 'H2021003', fullName: 'Nazarova Lola', faculty: 'Sun\'iy intellekt', course: '2', group: '2A', schoolGraduationYear: 2021, gpa: 2.3, attendance: 62 },
+    { id: 17, hemisId: 'H2023005', fullName: 'Rajabov Farrux', faculty: 'Iqtisodiyot', course: '3', group: '3B', schoolGraduationYear: 2023, gpa: 3.0, attendance: 83 },
+    { id: 18, hemisId: 'H2022006', fullName: 'Jumayeva Kamola', faculty: 'Menejment', course: '3', group: '3A', schoolGraduationYear: 2022, gpa: 3.2, attendance: 86 },
+    { id: 19, hemisId: 'H2024004', fullName: 'Salimov Davron', faculty: 'Huquqshunoslik', course: '2', group: '2B', schoolGraduationYear: 2024, gpa: 3.5, attendance: 90 },
+    { id: 20, hemisId: 'H2020001', fullName: 'Azimova Sevara', faculty: 'Tibbiyot', course: '3', group: '3C', schoolGraduationYear: 2020, gpa: 2.0, attendance: 55 },
+  ].map(analyzeStudentRisk);
+
+  // State for displayed students (test or imported)
+  const [displayedStudents, setDisplayedStudents] = useState(sampleTestStudents);
+
+  const importStudentsFromExcel = (file) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+
+        if (lines.length < 2) {
+          setImportError('Fayl bo\'sh yoki noto\'g\'ri formatda');
+          setShowImportModal(true);
+          return;
+        }
+
+        // Parse header
+        const headers = lines[0].split(/[;,\t]/).map(h => h.replace(/"/g, '').trim());
+
+        // Parse data rows
+        const importedData = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(/[;,\t]/).map(v => v.replace(/"/g, '').trim());
+          if (values.length >= 3) { // At least HEMIS ID, Name, Faculty
+            const student = {
+              id: Date.now() + i,
+              hemisId: values[0] || `IMPORT${Date.now()}${i}`,
+              fullName: values[1] || 'Noma\'lum',
+              faculty: values[2] || 'Noma\'lum',
+              course: values[3]?.includes('Magistr') ? 'magistr' : values[3]?.replace('-kurs', '').replace(/\D/g, '') || '1',
+              group: values[4] || '1A',
+              schoolGraduationYear: parseInt(values[5]) || currentYear - 1,
+              gpa: parseFloat(values[6]) || 0,
+              attendance: parseInt(values[7]) || 0,
+              university: selectedUniversity !== 'all' ? selectedUniversity : 'tatu',
+            };
+            importedData.push(analyzeStudentRisk(student));
+          }
+        }
+
+        if (importedData.length > 0) {
+          setImportedStudents(importedData);
+          setDisplayedStudents(importedData);
+          setImportError(null);
+          setShowImportModal(true);
+        } else {
+          setImportError('Hech qanday ma\'lumot topilmadi');
+          setShowImportModal(true);
+        }
+      } catch (error) {
+        setImportError('Faylni o\'qishda xatolik: ' + error.message);
+        setShowImportModal(true);
+      }
+    };
+
+    reader.onerror = () => {
+      setImportError('Faylni o\'qib bo\'lmadi');
+      setShowImportModal(true);
+    };
+
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  // Get risk statistics
+  const riskStats = {
+    total: displayedStudents.length,
+    atRisk: displayedStudents.filter(s => s.isAtRisk).length,
+    critical: displayedStudents.filter(s => s.riskLevel === 'critical').length,
+    warning: displayedStudents.filter(s => s.riskLevel === 'warning').length,
+    normal: displayedStudents.filter(s => s.riskLevel === 'normal').length,
   };
 
   // Export to PDF
@@ -278,9 +522,99 @@ function App() {
         <header className="header">
           <div className="header-title">
             <h2>{currentCategory?.name || 'Dashboard'}</h2>
+            <span className="header-stats">
+              {filteredIndicators.length} ta indikator
+              {selectedUniversity !== 'all' && ` • ${universities.find(u => u.id === selectedUniversity)?.name}`}
+            </span>
           </div>
           <div className="header-actions">
-            {!isDashboard && (
+            {/* Filters */}
+            <div className="header-filters">
+              <div className="filter-dropdown">
+                <BuildingIcon />
+                <select
+                  value={selectedUniversity}
+                  onChange={(e) => setSelectedUniversity(e.target.value)}
+                  className="filter-select"
+                >
+                  {universities.map(uni => (
+                    <option key={uni.id} value={uni.id}>{uni.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-dropdown">
+                <CalendarIcon />
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="filter-select"
+                >
+                  {months.map(month => (
+                    <option key={month.id} value={month.id}>{month.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-dropdown">
+                <GraduationIcon />
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="filter-select"
+                >
+                  {courses.map(course => (
+                    <option key={course.id} value={course.id}>{course.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Student Search - only in talaba category */}
+              {activeCategory === 'talaba' && (
+                <>
+                  <div className="student-search-container">
+                    <div className="student-search-input">
+                      <PersonSearchIcon />
+                      <input
+                        type="text"
+                        placeholder="Talaba qidirish (ism yoki HEMIS ID)..."
+                        value={studentSearchQuery}
+                        onChange={(e) => handleStudentSearch(e.target.value)}
+                        onFocus={() => studentSearchResults.length > 0 && setShowStudentDropdown(true)}
+                      />
+                      {selectedStudent && (
+                        <button className="clear-student-btn" onClick={clearStudentSelection}>
+                          <CloseIcon />
+                        </button>
+                      )}
+                    </div>
+                    {showStudentDropdown && studentSearchResults.length > 0 && (
+                      <div className="student-search-dropdown">
+                        {studentSearchResults.map(student => (
+                          <div
+                            key={student.id}
+                            className="student-search-item"
+                            onClick={() => handleSelectStudent(student)}
+                          >
+                            <div className="student-info">
+                              <span className="student-name">{student.fullName}</span>
+                              <span className="student-details">
+                                {student.hemisId} • {student.faculty} • {student.course === 'magistr' ? 'Magistr' : `${student.course}-kurs`}
+                              </span>
+                            </div>
+                            <span className={`student-status ${student.hasDebt || student.hasAcademicIssues ? 'warning' : 'good'}`}>
+                              {student.hasDebt || student.hasAcademicIssues ? 'Muammo bor' : 'Yaxshi'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {!isDashboard && activeCategory !== 'talaba' && (
               <div className="search-box">
                 <SearchIcon />
                 <input
@@ -392,14 +726,66 @@ function App() {
         </header>
 
         {isDashboard ? (
-          <Dashboard />
+          <Dashboard
+            indicators={filteredIndicators}
+            stats={currentStats}
+            selectedUniversity={selectedUniversity}
+            selectedMonth={selectedMonth}
+          />
         ) : (
           <div className="dashboard">
+            {/* Student Info Card */}
+            {selectedStudent && activeCategory === 'talaba' && (
+              <div className="student-info-card">
+                <div className="student-card-header">
+                  <div className="student-avatar">
+                    <UserAvatarIcon />
+                  </div>
+                  <div className="student-main-info">
+                    <h3>{selectedStudent.fullName}</h3>
+                    <p>{selectedStudent.hemisId} • {selectedStudent.faculty}</p>
+                  </div>
+                  <button className="close-card-btn" onClick={clearStudentSelection}>
+                    <CloseIcon />
+                  </button>
+                </div>
+                <div className="student-card-body">
+                  <div className="student-stat">
+                    <span className="stat-label">Kurs</span>
+                    <span className="stat-value">{selectedStudent.course === 'magistr' ? 'Magistratura' : `${selectedStudent.course}-kurs`}</span>
+                  </div>
+                  <div className="student-stat">
+                    <span className="stat-label">Guruh</span>
+                    <span className="stat-value">{selectedStudent.group}</span>
+                  </div>
+                  <div className="student-stat">
+                    <span className="stat-label">GPA</span>
+                    <span className={`stat-value ${parseFloat(selectedStudent.gpa) < 2.5 ? 'danger' : ''}`}>{selectedStudent.gpa}</span>
+                  </div>
+                  <div className="student-stat">
+                    <span className="stat-label">Davomat</span>
+                    <span className={`stat-value ${selectedStudent.attendance < 75 ? 'danger' : ''}`}>{selectedStudent.attendance}%</span>
+                  </div>
+                  <div className="student-stat">
+                    <span className="stat-label">To'lov holati</span>
+                    <span className={`stat-value ${selectedStudent.hasDebt ? 'danger' : 'success'}`}>
+                      {selectedStudent.hasDebt ? `${(selectedStudent.debtAmount / 1000000).toFixed(1)} mln qarzdor` : 'To\'langan'}
+                    </span>
+                  </div>
+                  <div className="student-stat">
+                    <span className="stat-label">Telefon</span>
+                    <span className="stat-value">{selectedStudent.phone}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <RiskTable
               indicators={filteredIndicators}
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
               onUpdateIndicators={setIndicators}
+              onImportExcel={activeCategory === 'talaba' ? importStudentsFromExcel : null}
             />
           </div>
         )}
@@ -429,6 +815,92 @@ function App() {
           className="export-menu-overlay"
           onClick={() => setShowExportMenu(false)}
         />
+      )}
+
+      {/* Click outside to close student dropdown */}
+      {showStudentDropdown && (
+        <div
+          className="student-dropdown-overlay"
+          onClick={() => setShowStudentDropdown(false)}
+        />
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+          <div className="modal import-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{importError ? 'Xatolik' : 'Import natijalari'}</h3>
+              <button className="modal-close" onClick={() => setShowImportModal(false)}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="modal-body">
+              {importError ? (
+                <div className="import-error">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                  </svg>
+                  <p>{importError}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="import-success">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <p><strong>{importedStudents.length}</strong> ta talaba ma'lumoti yuklandi</p>
+                  </div>
+                  <div className="import-preview">
+                    <table className="import-table">
+                      <thead>
+                        <tr>
+                          <th>HEMIS ID</th>
+                          <th>F.I.O.</th>
+                          <th>Fakultet</th>
+                          <th>Kurs</th>
+                          <th>GPA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importedStudents.slice(0, 10).map((student, index) => (
+                          <tr key={index}>
+                            <td>{student.hemisId}</td>
+                            <td>{student.fullName}</td>
+                            <td>{student.faculty}</td>
+                            <td>{student.course === 'magistr' ? 'Magistr' : `${student.course}-kurs`}</td>
+                            <td>{student.gpa}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importedStudents.length > 10 && (
+                      <p className="import-more">...va yana {importedStudents.length - 10} ta</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowImportModal(false)}>
+                Yopish
+              </button>
+              {!importError && importedStudents.length > 0 && (
+                <button className="btn-primary" onClick={() => {
+                  // Here you would typically save to backend
+                  alert(`${importedStudents.length} ta talaba muvaffaqiyatli yuklandi!`);
+                  setShowImportModal(false);
+                  setImportedStudents([]);
+                }}>
+                  Saqlash
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

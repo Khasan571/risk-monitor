@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { riskIndicators, riskCategories, formatValue } from '../data/riskData';
+import { riskCategories, formatValue } from '../data/riskData';
 
-function Dashboard() {
+function Dashboard({ indicators = [], stats: propStats, selectedUniversity, selectedMonth }) {
   const [animatedStats, setAnimatedStats] = useState({ total: 0, critical: 0, high: 0, good: 0 });
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [chartExpanded, setChartExpanded] = useState(true);
@@ -10,18 +10,18 @@ function Dashboard() {
   const [showAllSources, setShowAllSources] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
 
-  const stats = {
-    total: riskIndicators.length,
-    critical: riskIndicators.filter(r => r.status === 'critical').length,
-    high: riskIndicators.filter(r => r.status === 'high').length,
-    medium: riskIndicators.filter(r => r.status === 'medium').length,
-    good: riskIndicators.filter(r => r.status === 'good' || r.status === 'low').length,
+  const stats = propStats || {
+    total: indicators.length,
+    critical: indicators.filter(r => r.status === 'critical').length,
+    high: indicators.filter(r => r.status === 'high').length,
+    medium: indicators.filter(r => r.status === 'medium').length,
+    good: indicators.filter(r => r.status === 'good' || r.status === 'low').length,
   };
 
-  // Animate numbers on mount
+  // Animate numbers when stats change
   useEffect(() => {
-    const duration = 1500;
-    const steps = 60;
+    const duration = 800;
+    const steps = 30;
     const interval = duration / steps;
     let step = 0;
 
@@ -41,7 +41,7 @@ function Dashboard() {
     }, interval);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [stats.total, stats.critical, stats.high, stats.good]);
 
   const riskScore = Math.round(
     ((stats.critical * 4 + stats.high * 3 + stats.medium * 2 + stats.good * 1) /
@@ -84,14 +84,14 @@ function Dashboard() {
   const categoryStats = riskCategories
     .filter(c => c.id !== 'all')
     .map(category => {
-      const indicators = riskIndicators.filter(r => r.category === category.id);
-      const critical = indicators.filter(r => r.status === 'critical').length;
-      const high = indicators.filter(r => r.status === 'high').length;
-      const medium = indicators.filter(r => r.status === 'medium').length;
-      const good = indicators.filter(r => r.status === 'good' || r.status === 'low').length;
+      const categoryIndicators = indicators.filter(r => r.category === category.id);
+      const critical = categoryIndicators.filter(r => r.status === 'critical').length;
+      const high = categoryIndicators.filter(r => r.status === 'high').length;
+      const medium = categoryIndicators.filter(r => r.status === 'medium').length;
+      const good = categoryIndicators.filter(r => r.status === 'good' || r.status === 'low').length;
       return {
         ...category,
-        total: indicators.length,
+        total: categoryIndicators.length,
         critical,
         high,
         medium,
@@ -103,14 +103,14 @@ function Dashboard() {
     .sort((a, b) => (b.critical * 3 + b.high * 2 + b.medium) - (a.critical * 3 + a.high * 2 + a.medium));
 
   // Critical indicators list
-  const criticalIndicators = riskIndicators
+  const criticalIndicators = indicators
     .filter(r => r.status === 'critical' || r.status === 'high')
     .sort((a, b) => (a.status === 'critical' ? 0 : 1) - (b.status === 'critical' ? 0 : 1))
     .slice(0, 6);
 
   // Data sources
-  const dataSources = [...new Set(riskIndicators.map(r => r.dataSource))].map(source => {
-    const items = riskIndicators.filter(r => r.dataSource === source);
+  const dataSources = [...new Set(indicators.map(r => r.dataSource))].map(source => {
+    const items = indicators.filter(r => r.dataSource === source);
     const critical = items.filter(r => r.status === 'critical' || r.status === 'high').length;
     return { name: source, count: items.length, critical };
   }).sort((a, b) => b.count - a.count);
@@ -481,7 +481,7 @@ function Dashboard() {
             </button>
           </div>
           <div className={`alerts-list ${showAllAlerts ? 'expanded' : ''}`}>
-            {(showAllAlerts ? riskIndicators.filter(r => r.status === 'critical' || r.status === 'high') : criticalIndicators).map((item, idx) => (
+            {(showAllAlerts ? indicators.filter(r => r.status === 'critical' || r.status === 'high') : criticalIndicators).map((item, idx) => (
               <div key={item.id} className={`alert-row ${item.status}`}>
                 <div className={`alert-indicator ${item.status}`}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -494,7 +494,7 @@ function Dashboard() {
                 </div>
                 <div className="alert-content">
                   <span className="alert-title">{item.name}</span>
-                  <span className="alert-meta">{item.dataSource} • {formatValue(item.currentValue, item.unit)}</span>
+                  <span className="alert-meta">{item.dataSource} • {item.value}</span>
                 </div>
               </div>
             ))}

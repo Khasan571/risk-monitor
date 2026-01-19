@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
-import { getStatusLabel, formatValue } from '../data/riskData';
-import { getDetailedDataByIndicatorId, formatCurrency, formatDate, getReasonLabel } from '../data/debtData';
-import { getCorruptionDataByIndicatorId, formatMoney } from '../data/corruptionData';
+import { useState, useMemo, useRef } from 'react';
+import { getStatusLabel } from '../data/riskData';
+import { getStudentsByIndicator } from '../data/studentsData';
 import Modal from './Modal';
 
 const SortIcon = ({ direction }) => (
@@ -38,32 +37,532 @@ const EyeIcon = () => (
   </svg>
 );
 
-const EditIcon = () => (
+const UploadIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="17 8 12 3 7 8"/>
+    <line x1="12" y1="3" x2="12" y2="15"/>
   </svg>
 );
 
-const TrashIcon = () => (
+const PhoneIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="3 6 5 6 21 6"/>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-    <line x1="10" y1="11" x2="10" y2="17"/>
-    <line x1="14" y1="11" x2="14" y2="17"/>
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
   </svg>
 );
 
-function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicators }) {
+const UserIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>
+);
+
+// Talabalar ro'yxati komponenti
+const StudentListSection = ({ indicatorName, universityId }) => {
+  const students = getStudentsByIndicator(indicatorName, universityId);
+
+  if (!students || students.length === 0) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">Tegishli talabalar</h4>
+        <div className="no-students">
+          <UserIcon />
+          <p>Bu indikator uchun talabalar topilmadi</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Ikki OTMda o'qiyotganlar uchun maxsus jadval
+  if (indicatorName === "Ikki OTMda bir vaqtda o'qiyotganlar") {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Ikki OTMda bir vaqtda o'qiyotgan talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table dual-enrollment">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>1-OTM</th>
+                <th>2-OTM</th>
+                <th>Kurs</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row critical">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">
+                    <div className="student-name-info">
+                      <span className="name">{student.fullName}</span>
+                      <span className="note">{student.note}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="university-info">
+                      <span className="uni-name">{student.university1}</span>
+                      <span className="faculty">{student.faculty1}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="university-info">
+                      <span className="uni-name">{student.university2}</span>
+                      <span className="faculty">{student.faculty2}</span>
+                    </div>
+                  </td>
+                  <td className="course-cell">{student.course}-kurs</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Kurs bo'yicha xavf tahlili
+  if (indicatorName === "Kurs bo'yicha xavf tahlili") {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Kurs bo'yicha xavfda bo'lgan talabalar ({students.length} ta)
+        </h4>
+        <div className="course-risk-info">
+          <p>Maktabni bitirgan yilga ko'ra hozirgi kurs mos kelmaydigan talabalar. Masalan: 2022-yilda maktabni bitirgan talaba 2026-yilda 4-kursda bo'lishi kerak.</p>
+        </div>
+        <div className="student-table-wrapper">
+          <table className="student-list-table course-risk">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Maktab bitirgan</th>
+                <th>Kutilgan kurs</th>
+                <th>Hozirgi kurs</th>
+                <th>Holat</th>
+                <th>GPA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className={`student-row ${student.riskLevel}`}>
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td>{student.faculty}</td>
+                  <td className="year-cell">{student.schoolGraduationYear}</td>
+                  <td className="course-cell">{student.expectedCourse}-kurs</td>
+                  <td className="course-cell">{student.course}-kurs</td>
+                  <td>
+                    <span className={`risk-badge ${student.riskLevel}`}>
+                      {student.yearsBehind} yil orqada
+                    </span>
+                  </td>
+                  <td className={`gpa-cell ${parseFloat(student.gpa) < 2.5 ? 'low' : ''}`}>
+                    {student.gpa}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Stipendiya to'lanmaganlar uchun maxsus jadval
+  if (indicatorName === "Stipendiya to'lanmagan talabalar") {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Stipendiya to'lanmagan talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table scholarship">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>GPA</th>
+                <th>To'lanmagan oy</th>
+                <th>Summa</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row warning">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university?.toUpperCase()}</td>
+                  <td>{student.faculty}</td>
+                  <td className="gpa-cell">{student.gpa}</td>
+                  <td className="months-cell">{student.unpaidMonths} oy</td>
+                  <td className="amount-cell">{(student.amount / 1000000).toFixed(1)} mln</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Vizasi tugagan talabalar uchun maxsus jadval
+  if (indicatorName.includes("vizasi")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Vizasi muammoli talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table visa">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>Davlat</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Viza tugash</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row warning">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.country}</td>
+                  <td>{student.university?.toUpperCase()}</td>
+                  <td>{student.faculty}</td>
+                  <td className="date-cell">{student.visaExpiry}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Hujjatlari to'liq emas talabalar
+  if (indicatorName.includes("Hujjatlari")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Hujjatlari to'liq emas talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Kurs</th>
+                <th>Yetishmayotgan hujjatlar</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row warning">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td>{student.faculty}</td>
+                  <td className="course-cell">{student.course}-kurs</td>
+                  <td className="docs-cell">{student.missingDocs?.join(', ')}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Akademik ta'til muddati o'tganlar
+  if (indicatorName.includes("ta'til")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Akademik ta'til muddati o'tganlar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Ta'til boshlanishi</th>
+                <th>Ta'til tugashi</th>
+                <th>Sabab</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row warning">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td className="date-cell">{student.leaveStart}</td>
+                  <td className="date-cell critical">{student.leaveEnd}</td>
+                  <td>{student.reason}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Passport eskirgan
+  if (indicatorName.includes("Passport")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Passport ma'lumotlari eskirgan ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Kurs</th>
+                <th>Passport muddati</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row warning">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td>{student.faculty}</td>
+                  <td className="course-cell">{student.course}-kurs</td>
+                  <td className="date-cell critical">{student.passportExpiry}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Ro'yxatdan o'tkazilmagan
+  if (indicatorName.includes("ro'yxatdan")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          Ro'yxatdan o'tkazilmagan talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table">
+            <thead>
+              <tr>
+                <th>Vaqtincha ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Qabul sanasi</th>
+                <th>Izoh</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row critical">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td>{student.faculty}</td>
+                  <td className="date-cell">{student.admissionDate}</td>
+                  <td className="note-cell">{student.note}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // O'qishdan chetlatilganlar
+  if (indicatorName.includes("chetlatilganlar")) {
+    return (
+      <div className="student-list-section">
+        <h4 className="student-list-title">
+          <UserIcon />
+          O'qishdan chetlatilgan talabalar ({students.length} ta)
+        </h4>
+        <div className="student-table-wrapper">
+          <table className="student-list-table">
+            <thead>
+              <tr>
+                <th>HEMIS ID</th>
+                <th>F.I.O.</th>
+                <th>OTM</th>
+                <th>Fakultet</th>
+                <th>Chetlatish sanasi</th>
+                <th>Sabab</th>
+                <th>Telefon</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student) => (
+                <tr key={student.id} className="student-row critical">
+                  <td className="hemis-cell">{student.hemisId}</td>
+                  <td className="name-cell">{student.fullName}</td>
+                  <td>{student.university}</td>
+                  <td>{student.faculty}</td>
+                  <td className="date-cell">{student.expelDate}</td>
+                  <td className="reason-cell">{student.reason}</td>
+                  <td className="phone-cell">
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Umumiy talabalar jadvali
+  return (
+    <div className="student-list-section">
+      <h4 className="student-list-title">
+        <UserIcon />
+        Tegishli talabalar ({students.length} ta)
+      </h4>
+      <div className="student-table-wrapper">
+        <table className="student-list-table">
+          <thead>
+            <tr>
+              <th>HEMIS ID</th>
+              <th>F.I.O.</th>
+              <th>OTM</th>
+              <th>Fakultet</th>
+              <th>Kurs</th>
+              <th>Telefon</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student) => (
+              <tr key={student.id} className="student-row">
+                <td className="hemis-cell">{student.hemisId}</td>
+                <td className="name-cell">{student.fullName}</td>
+                <td>{student.university?.toUpperCase() || '-'}</td>
+                <td>{student.faculty || '-'}</td>
+                <td className="course-cell">{student.course ? `${student.course}-kurs` : '-'}</td>
+                <td className="phone-cell">
+                  {student.phone && (
+                    <a href={`tel:${student.phone}`} className="phone-link">
+                      <PhoneIcon />
+                      {student.phone}
+                    </a>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Modal states
   const [viewModal, setViewModal] = useState({ isOpen: false, indicator: null });
-  const [editModal, setEditModal] = useState({ isOpen: false, indicator: null });
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, indicator: null });
-  const [editForm, setEditForm] = useState({});
+
+  // File input ref for import
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file && onImportExcel) {
+      onImportExcel(file);
+    }
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
 
   const statusFilters = [
     { id: 'all', label: 'Barchasi' },
@@ -75,9 +574,8 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
 
   const filteredIndicators = statusFilter === 'all'
     ? indicators
-    : indicators.filter(i => i.status === statusFilter);
+    : indicators.filter(i => i.status === statusFilter || (statusFilter === 'good' && i.status === 'low'));
 
-  // Sorting
   const sortedIndicators = useMemo(() => {
     if (!sortConfig.key) return filteredIndicators;
 
@@ -96,9 +594,9 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
         bValue = statusOrder[bValue] || 0;
       }
 
-      if (sortConfig.key === 'currentValue') {
-        aValue = Number(aValue) || 0;
-        bValue = Number(bValue) || 0;
+      if (sortConfig.key === 'value') {
+        aValue = parseInt(aValue) || 0;
+        bValue = parseInt(bValue) || 0;
       }
 
       if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -107,7 +605,6 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
     });
   }, [filteredIndicators, sortConfig]);
 
-  // Pagination
   const totalPages = Math.ceil(sortedIndicators.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedIndicators = sortedIndicators.slice(startIndex, startIndex + itemsPerPage);
@@ -154,47 +651,30 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
     return pages;
   };
 
-  // Action handlers
-  const handleView = (indicator) => {
-    setViewModal({ isOpen: true, indicator });
-  };
-
-  const handleEdit = (indicator) => {
-    setEditForm({
-      currentValue: indicator.currentValue,
-      status: indicator.status,
-      threshold: indicator.threshold
-    });
-    setEditModal({ isOpen: true, indicator });
-  };
-
-  const handleDelete = (indicator) => {
-    setDeleteModal({ isOpen: true, indicator });
-  };
-
-  const confirmDelete = () => {
-    if (deleteModal.indicator && onUpdateIndicators) {
-      onUpdateIndicators(prev => prev.filter(i => i.id !== deleteModal.indicator.id));
-    }
-    setDeleteModal({ isOpen: false, indicator: null });
-  };
-
-  const confirmEdit = () => {
-    if (editModal.indicator && onUpdateIndicators) {
-      onUpdateIndicators(prev => prev.map(i =>
-        i.id === editModal.indicator.id
-          ? { ...i, ...editForm }
-          : i
-      ));
-    }
-    setEditModal({ isOpen: false, indicator: null });
-  };
-
   return (
     <div className="table-section">
       <div className="table-header">
         <h3>Risk Indikatorlari ({filteredIndicators.length} ta)</h3>
         <div className="table-filters">
+          {onImportExcel && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept=".xlsx,.xls,.csv"
+                style={{ display: 'none' }}
+              />
+              <button
+                className="filter-btn excel-import-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Excel fayldan ma'lumot yuklash"
+              >
+                <UploadIcon />
+                <span>Excel yuklash</span>
+              </button>
+            </>
+          )}
           {statusFilters.map((filter) => (
             <button
               key={filter.id}
@@ -217,14 +697,12 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
                   <SortIcon direction={sortConfig.key === 'name' ? sortConfig.direction : null} />
                 </div>
               </th>
-              <th>Mulkchilik</th>
-              <th className="sortable" onClick={() => handleSort('currentValue')}>
+              <th className="sortable" onClick={() => handleSort('value')}>
                 <div className="th-content">
-                  Joriy qiymat
-                  <SortIcon direction={sortConfig.key === 'currentValue' ? sortConfig.direction : null} />
+                  Qiymat
+                  <SortIcon direction={sortConfig.key === 'value' ? sortConfig.direction : null} />
                 </div>
               </th>
-              <th>Me'yor</th>
               <th className="sortable" onClick={() => handleSort('status')}>
                 <div className="th-content">
                   Holat
@@ -237,158 +715,141 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
                   <SortIcon direction={sortConfig.key === 'dataSource' ? sortConfig.direction : null} />
                 </div>
               </th>
-              <th>Amallar</th>
+              <th>Yangilangan</th>
+              <th>Ko'rish</th>
             </tr>
           </thead>
           <tbody>
-            {paginatedIndicators.map((indicator) => (
-              <tr
-                key={indicator.id}
-                className="clickable-row"
-                onClick={() => handleView(indicator)}
-              >
-                <td>
-                  <div className="indicator-name">{indicator.name}</div>
-                </td>
-                <td>
-                  <div className="ownership-badges">
-                    {indicator.ownership.map((own) => (
-                      <span
-                        key={own}
-                        className={`ownership-badge ${own.toLowerCase()}`}
-                      >
-                        {own}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="value-cell">
-                  {formatValue(indicator.currentValue, indicator.unit)}
-                </td>
-                <td>{indicator.threshold}</td>
-                <td>
-                  <span className={`status-badge ${indicator.status}`}>
-                    <span className="status-dot"></span>
-                    {getStatusLabel(indicator.status)}
-                  </span>
-                </td>
-                <td>
-                  <span className="source-badge">{indicator.dataSource}</span>
-                </td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <div className="action-buttons">
+            {paginatedIndicators.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="no-data">Ma'lumot topilmadi</td>
+              </tr>
+            ) : (
+              paginatedIndicators.map((indicator) => (
+                <tr
+                  key={indicator.id}
+                  className="clickable-row"
+                  onClick={() => setViewModal({ isOpen: true, indicator })}
+                >
+                  <td>
+                    <div className="indicator-name">{indicator.name}</div>
+                  </td>
+                  <td className="value-cell">
+                    <strong>{indicator.value}</strong>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${indicator.status}`}>
+                      <span className="status-dot"></span>
+                      {getStatusLabel(indicator.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="source-badge">{indicator.dataSource}</span>
+                  </td>
+                  <td className="time-cell">{indicator.lastUpdated}</td>
+                  <td>
                     <button
                       className="action-btn view"
-                      onClick={() => handleView(indicator)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewModal({ isOpen: true, indicator });
+                      }}
                       title="Ko'rish"
                     >
                       <EyeIcon />
                     </button>
-                    <button
-                      className="action-btn edit"
-                      onClick={() => handleEdit(indicator)}
-                      title="Tahrirlash"
-                    >
-                      <EditIcon />
-                    </button>
-                    <button
-                      className="action-btn delete"
-                      onClick={() => handleDelete(indicator)}
-                      title="O'chirish"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
       {/* Pagination */}
-      <div className="table-pagination">
-        <div className="pagination-info">
-          <span>Sahifada:</span>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="pagination-select"
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-          <span className="pagination-range">
-            {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedIndicators.length)} / {sortedIndicators.length}
-          </span>
-        </div>
-
-        <div className="pagination-controls">
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(1)}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft />
-            <ChevronLeft />
-          </button>
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft />
-          </button>
-
-          <div className="pagination-pages">
-            {getPageNumbers().map((page, index) => (
-              page === '...' ? (
-                <span key={`dots-${index}`} className="pagination-dots">...</span>
-              ) : (
-                <button
-                  key={page}
-                  className={`pagination-page ${currentPage === page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </button>
-              )
-            ))}
+      {totalPages > 0 && (
+        <div className="table-pagination">
+          <div className="pagination-info">
+            <span>Sahifada:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="pagination-select"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="pagination-range">
+              {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedIndicators.length)} / {sortedIndicators.length}
+            </span>
           </div>
 
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight />
-          </button>
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(totalPages)}
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight />
-            <ChevronRight />
-          </button>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft />
+              <ChevronLeft />
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft />
+            </button>
+
+            <div className="pagination-pages">
+              {getPageNumbers().map((page, index) => (
+                page === '...' ? (
+                  <span key={`dots-${index}`} className="pagination-dots">...</span>
+                ) : (
+                  <button
+                    key={page}
+                    className={`pagination-page ${currentPage === page ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                )
+              ))}
+            </div>
+
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight />
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight />
+              <ChevronRight />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* View Modal */}
       <Modal
         isOpen={viewModal.isOpen}
         onClose={() => setViewModal({ isOpen: false, indicator: null })}
         title="Indikator ma'lumotlari"
-        size="xlarge"
+        size={viewModal.indicator?.category === 'talaba' ? 'large' : 'medium'}
       >
         {viewModal.indicator && (
           <div className="view-details">
-            {/* Asosiy ma'lumotlar */}
             <div className="indicator-summary">
               <div className="detail-row">
                 <span className="detail-label">Indikator nomi</span>
@@ -400,16 +861,8 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
                   <span className="detail-value">{viewModal.indicator.category}</span>
                 </div>
                 <div className="detail-row">
-                  <span className="detail-label">Mulkchilik</span>
-                  <span className="detail-value">
-                    {viewModal.indicator.ownership.join(', ')}
-                  </span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Joriy qiymat</span>
-                  <span className="detail-value highlight">
-                    {formatValue(viewModal.indicator.currentValue, viewModal.indicator.unit)}
-                  </span>
+                  <span className="detail-label">Qiymat</span>
+                  <span className="detail-value highlight">{viewModal.indicator.value}</span>
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Holat</span>
@@ -418,688 +871,24 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onUpdateIndicato
                     {getStatusLabel(viewModal.indicator.status)}
                   </span>
                 </div>
-              </div>
-            </div>
-
-            {/* Batafsil ma'lumotlar - Qarzdorlik */}
-            {getDetailedDataByIndicatorId(viewModal.indicator.id) && (
-              <div className="detailed-data-section">
-                <h4 className="section-title">
-                  {getDetailedDataByIndicatorId(viewModal.indicator.id).title}
-                  <span className="count-badge">
-                    {getDetailedDataByIndicatorId(viewModal.indicator.id).data.length} ta
-                  </span>
-                </h4>
-
-                <div className="debt-table-wrapper">
-                  <table className="debt-details-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Talaba</th>
-                        <th>Fakultet / Guruh</th>
-                        <th>Shartnoma</th>
-                        <th>To'langan</th>
-                        <th>Qarzdorlik</th>
-                        <th>Oxirgi to'lov</th>
-                        <th>Sababi</th>
-                        <th>Ogohlantirish</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getDetailedDataByIndicatorId(viewModal.indicator.id).data.map((student, index) => (
-                        <tr key={student.id}>
-                          <td className="row-number">{index + 1}</td>
-                          <td>
-                            <div className="student-info">
-                              <span className="student-name">{student.fullName}</span>
-                              <span className="student-id">{student.studentId}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="faculty-info">
-                              <span className="faculty-name">{student.faculty}</span>
-                              <span className="group-name">{student.group} / {student.course}-kurs</span>
-                            </div>
-                          </td>
-                          <td className="amount-cell">{formatCurrency(student.contractAmount)}</td>
-                          <td className="amount-cell paid">{formatCurrency(student.paidAmount)}</td>
-                          <td className="amount-cell debt">{formatCurrency(student.debtAmount)}</td>
-                          <td>
-                            <div className="date-info">
-                              <span className="date">{formatDate(student.lastPaymentDate)}</span>
-                              <span className="days-badge">{student.debtDays} kun</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="reason-info">
-                              <span className={`reason-badge ${student.reason}`}>
-                                {getReasonLabel(student.reason)}
-                              </span>
-                              {student.notes && (
-                                <span className="reason-note" title={student.notes}>
-                                  {student.notes}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`warning-badge ${student.warnings >= 4 ? 'critical' : student.warnings >= 2 ? 'warning' : ''}`}>
-                              {student.warnings}x
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan="3"><strong>Jami:</strong></td>
-                        <td className="amount-cell">
-                          <strong>
-                            {formatCurrency(
-                              getDetailedDataByIndicatorId(viewModal.indicator.id).data.reduce((sum, s) => sum + s.contractAmount, 0)
-                            )}
-                          </strong>
-                        </td>
-                        <td className="amount-cell paid">
-                          <strong>
-                            {formatCurrency(
-                              getDetailedDataByIndicatorId(viewModal.indicator.id).data.reduce((sum, s) => sum + s.paidAmount, 0)
-                            )}
-                          </strong>
-                        </td>
-                        <td className="amount-cell debt">
-                          <strong>
-                            {formatCurrency(
-                              getDetailedDataByIndicatorId(viewModal.indicator.id).data.reduce((sum, s) => sum + s.debtAmount, 0)
-                            )}
-                          </strong>
-                        </td>
-                        <td colSpan="3"></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Korrupsiya/Moliyaviy nazorat ma'lumotlari */}
-            {getCorruptionDataByIndicatorId(viewModal.indicator.id) && (
-              <div className="detailed-data-section">
-                <h4 className="section-title">
-                  {getCorruptionDataByIndicatorId(viewModal.indicator.id).title}
-                  <span className="count-badge danger">
-                    {getCorruptionDataByIndicatorId(viewModal.indicator.id).data.length} ta holat
-                  </span>
-                </h4>
-
-                <div className="debt-table-wrapper">
-                  <table className="debt-details-table corruption-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'restored' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>Chetlatilgan sana</th>
-                            <th>Sababi</th>
-                            <th>Tiklangan sana</th>
-                            <th>Tiklagan shaxs</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'admission' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>DTM ball</th>
-                            <th>Kerakli ball</th>
-                            <th>Farq</th>
-                            <th>Mas'ul shaxs</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'examFree' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>Fan</th>
-                            <th>Baho</th>
-                            <th>Kiritgan</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'attendance' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>Fan</th>
-                            <th>HEMIS davomat</th>
-                            <th>Biometrik</th>
-                            <th>Farq</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'graduationGrades' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fan</th>
-                            <th>Eski baho</th>
-                            <th>Yangi baho</th>
-                            <th>O'zgargan sana</th>
-                            <th>O'zgartirgan</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'cancelledExpulsion' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>Chetlatish sanasi</th>
-                            <th>Sababi</th>
-                            <th>Bekor qilingan</th>
-                            <th>Bekor qilgan</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'grades' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fan</th>
-                            <th>Eski baho</th>
-                            <th>Yangi baho</th>
-                            <th>Muddatdan keyin</th>
-                            <th>O'zgartirgan</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'ghost' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Fakultet</th>
-                            <th>Oxirgi faollik</th>
-                            <th>Nofaol kunlar</th>
-                            <th>To'langan</th>
-                            <th>Davomat</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'payment' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Bank summasi</th>
-                            <th>Tizimda</th>
-                            <th>Farq</th>
-                            <th>Sana</th>
-                            <th>Kassir</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'overcharge' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Rasmiy narx</th>
-                            <th>Olingan</th>
-                            <th>Ortiqcha</th>
-                            <th>Sana</th>
-                            <th>Kassir</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'discount' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Chegirma turi</th>
-                            <th>Foiz</th>
-                            <th>Summa</th>
-                            <th>Tekshiruv</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'dorm' && (
-                          <>
-                            <th>Ism</th>
-                            <th>Xona</th>
-                            <th>Kirgan sana</th>
-                            <th>Oylik to'lov</th>
-                            <th>Talaba holati</th>
-                            <th>Aloqa</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'dormPayment' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Xona</th>
-                            <th>Rasmiy narx</th>
-                            <th>Olingan</th>
-                            <th>Ortiqcha</th>
-                            <th>Yig'uvchi</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'queue' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Viloyat</th>
-                            <th>Navbat</th>
-                            <th>O'tkazilganlar</th>
-                            <th>Aloqa</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'quota' && (
-                          <>
-                            <th>Talaba</th>
-                            <th>Kvota turi</th>
-                            <th>Tekshiruv</th>
-                            <th>Haqiqiy holat</th>
-                            <th>Tejangan</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'grant' && (
-                          <>
-                            <th>Grant egasi</th>
-                            <th>DTM ball</th>
-                            <th>Kontrakt talaba</th>
-                            <th>DTM ball</th>
-                            <th>Summa</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'ghostEmp' && (
-                          <>
-                            <th>Xodim</th>
-                            <th>Lavozim</th>
-                            <th>Bo'lim</th>
-                            <th>Maosh</th>
-                            <th>Nofaol kunlar</th>
-                            <th>Olingan summa</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'nepotism' && (
-                          <>
-                            <th>1-xodim</th>
-                            <th>Lavozim</th>
-                            <th>2-xodim</th>
-                            <th>Lavozim</th>
-                            <th>Qarindoshlik</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                        {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'multiJob' && (
-                          <>
-                            <th>Xodim</th>
-                            <th>1-OTM</th>
-                            <th>Maosh</th>
-                            <th>2-OTM</th>
-                            <th>Maosh</th>
-                            <th>Jami</th>
-                            <th>Holat</th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getCorruptionDataByIndicatorId(viewModal.indicator.id).data.map((item, index) => (
-                        <tr key={item.id}>
-                          <td className="row-number">{index + 1}</td>
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'restored' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td>{item.expelledDate}</td>
-                              <td><span className="reason-note">{item.expelReason}</span></td>
-                              <td>{item.restoredDate}</td>
-                              <td><span className="reason-note">{item.restoredBy}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'admission' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td className="amount-cell">{item.dtmScore}</td>
-                              <td className="amount-cell">{item.requiredScore}</td>
-                              <td className="amount-cell debt">{item.scoreDifference}</td>
-                              <td><span className="reason-note">{item.responsiblePerson}</span></td>
-                              <td><span className={`status-badge-sm ${item.status === 'Tasdiqlangan' ? 'critical' : 'warning'}`}>{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'examFree' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td>{item.subject}</td>
-                              <td className="amount-cell">{item.gradeEntered}</td>
-                              <td><span className="reason-note">{item.enteredBy}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'attendance' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td>{item.subject}</td>
-                              <td className="amount-cell">{item.hemisAttendance}%</td>
-                              <td className="amount-cell">{item.biometricAttendance}%</td>
-                              <td className="amount-cell debt">{item.difference}%</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'graduationGrades' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.subject}</td>
-                              <td className="amount-cell">{item.originalGrade}</td>
-                              <td className="amount-cell paid">{item.changedGrade}</td>
-                              <td>{item.changeDate}</td>
-                              <td><span className="reason-note">{item.changedBy}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'cancelledExpulsion' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td>{item.expelDate}</td>
-                              <td><span className="reason-note">{item.expelReason}</span></td>
-                              <td>{item.cancelDate}</td>
-                              <td><span className="reason-note">{item.cancelledBy}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'grades' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.subject}</td>
-                              <td className="amount-cell">{item.oldGrade}</td>
-                              <td className="amount-cell paid">{item.newGrade}</td>
-                              <td><span className="days-badge">{item.daysAfterDeadline} kun</span></td>
-                              <td><span className="reason-note">{item.changedBy}</span></td>
-                              <td><span className={`status-badge-sm ${item.status === 'Tasdiqlangan' ? 'critical' : 'warning'}`}>{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'ghost' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.faculty}</td>
-                              <td>{item.lastActivity}</td>
-                              <td><span className="days-badge">{item.inactiveDays} kun</span></td>
-                              <td className="amount-cell">{formatMoney(item.paidAmount)}</td>
-                              <td className="amount-cell debt">{item.attendancePercent}%</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'payment' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td className="amount-cell paid">{formatMoney(item.bankAmount)}</td>
-                              <td className="amount-cell">{formatMoney(item.billingAmount)}</td>
-                              <td className="amount-cell debt">{formatMoney(item.difference)}</td>
-                              <td>{item.transactionDate}</td>
-                              <td><span className="reason-note">{item.cashier}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'overcharge' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td className="amount-cell">{formatMoney(item.officialRate)}</td>
-                              <td className="amount-cell">{formatMoney(item.chargedAmount)}</td>
-                              <td className="amount-cell debt">{formatMoney(item.overcharge)}</td>
-                              <td>{item.paymentDate}</td>
-                              <td><span className="reason-note">{item.cashier}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'discount' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td><span className="reason-badge financial">{item.discountType}</span></td>
-                              <td className="amount-cell">{item.discountPercent}%</td>
-                              <td className="amount-cell debt">{formatMoney(item.discountAmount)}</td>
-                              <td><span className="status-badge-sm critical">{item.verificationStatus}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'dorm' && (
-                            <>
-                              <td><span className="student-name">{item.fullName}</span></td>
-                              <td>{item.dormId}</td>
-                              <td>{item.checkInDate}</td>
-                              <td className="amount-cell">{formatMoney(item.monthlyPayment)}</td>
-                              <td><span className="status-badge-sm critical">{item.studentStatus}</span></td>
-                              <td><span className="reason-note">{item.relationship}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'dormPayment' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.dormRoom}</td>
-                              <td className="amount-cell">{formatMoney(item.officialRate)}</td>
-                              <td className="amount-cell">{formatMoney(item.chargedAmount)}</td>
-                              <td className="amount-cell debt">{formatMoney(item.overcharge)}</td>
-                              <td><span className="reason-note">{item.collectedBy}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'queue' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td>{item.homeRegion}</td>
-                              <td className="amount-cell">{item.queuePosition || 'Navbatsiz'}</td>
-                              <td className="amount-cell debt">{item.studentsSkipped} ta</td>
-                              <td><span className="reason-note">{item.connection}</span></td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'quota' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.studentId}</span></div></td>
-                              <td><span className="reason-badge family">{item.quotaType}</span></td>
-                              <td><span className="status-badge-sm critical">{item.verificationResult}</span></td>
-                              <td><span className="reason-note">{item.realStatus}</span></td>
-                              <td className="amount-cell debt">{formatMoney(item.savedAmount)}</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'grant' && (
-                            <>
-                              <td><span className="student-name">{item.grantStudentName}</span></td>
-                              <td className="amount-cell paid">{item.dtmScore}</td>
-                              <td><span className="student-name">{item.contractStudentName}</span></td>
-                              <td className="amount-cell debt">{item.contractDtmScore}</td>
-                              <td className="amount-cell debt">{formatMoney(item.transactionAmount)}</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'ghostEmp' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.empId}</span></div></td>
-                              <td>{item.position}</td>
-                              <td>{item.department}</td>
-                              <td className="amount-cell">{formatMoney(item.salary)}</td>
-                              <td><span className="days-badge">{item.inactiveDays} kun</span></td>
-                              <td className="amount-cell debt">{formatMoney(item.totalReceivedInactive)}</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'nepotism' && (
-                            <>
-                              <td><span className="student-name">{item.emp1Name}</span></td>
-                              <td>{item.emp1Position}</td>
-                              <td><span className="student-name">{item.emp2Name}</span></td>
-                              <td>{item.emp2Position}</td>
-                              <td><span className="reason-badge family">{item.relationship}</span></td>
-                              <td><span className="status-badge-sm warning">{item.status}</span></td>
-                            </>
-                          )}
-
-                          {getCorruptionDataByIndicatorId(viewModal.indicator.id).type === 'multiJob' && (
-                            <>
-                              <td><div className="student-info"><span className="student-name">{item.fullName}</span><span className="student-id">{item.jshshir}</span></div></td>
-                              <td><span className="reason-note">{item.otm1}</span></td>
-                              <td className="amount-cell">{formatMoney(item.salary1)}</td>
-                              <td><span className="reason-note">{item.otm2}</span></td>
-                              <td className="amount-cell">{formatMoney(item.salary2)}</td>
-                              <td className="amount-cell debt">{formatMoney(item.totalSalary)}</td>
-                              <td><span className="status-badge-sm critical">{item.status}</span></td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {viewModal.indicator.notes && (
-                  <div className="corruption-notes">
-                    <strong>Izoh:</strong> {viewModal.indicator.notes}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Oddiy indikatorlar uchun qo'shimcha ma'lumot */}
-            {!getDetailedDataByIndicatorId(viewModal.indicator.id) && !getCorruptionDataByIndicatorId(viewModal.indicator.id) && (
-              <div className="additional-info">
                 <div className="detail-row">
-                  <span className="detail-label">Me'yor</span>
-                  <span className="detail-value">{viewModal.indicator.threshold}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Risk holati</span>
-                  <span className="detail-value">{viewModal.indicator.riskCondition}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Ma'lumot manbai</span>
+                  <span className="detail-label">Manba</span>
                   <span className="detail-value">{viewModal.indicator.dataSource}</span>
                 </div>
+                <div className="detail-row">
+                  <span className="detail-label">Yangilangan</span>
+                  <span className="detail-value">{viewModal.indicator.lastUpdated}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Talaba kategoriyasi uchun talabalar ro'yxati */}
+            {viewModal.indicator.category === 'talaba' && (
+              <StudentListSection
+                indicatorName={viewModal.indicator.name}
+                universityId={viewModal.indicator.university}
+              />
             )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal
-        isOpen={editModal.isOpen}
-        onClose={() => setEditModal({ isOpen: false, indicator: null })}
-        title="Indikatorni tahrirlash"
-      >
-        {editModal.indicator && (
-          <div className="edit-form">
-            <div className="form-group">
-              <label>Indikator nomi</label>
-              <input
-                type="text"
-                value={editModal.indicator.name}
-                disabled
-                className="form-input disabled"
-              />
-            </div>
-            <div className="form-group">
-              <label>Joriy qiymat</label>
-              <input
-                type="number"
-                value={editForm.currentValue}
-                onChange={(e) => setEditForm(prev => ({ ...prev, currentValue: Number(e.target.value) }))}
-                className="form-input"
-              />
-            </div>
-            <div className="form-group">
-              <label>Me'yor</label>
-              <input
-                type="text"
-                value={editForm.threshold}
-                onChange={(e) => setEditForm(prev => ({ ...prev, threshold: e.target.value }))}
-                className="form-input"
-              />
-            </div>
-            <div className="form-group">
-              <label>Holat</label>
-              <select
-                value={editForm.status}
-                onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                className="form-select"
-              >
-                <option value="good">Yaxshi</option>
-                <option value="low">Past</option>
-                <option value="medium">O'rta</option>
-                <option value="high">Yuqori</option>
-                <option value="critical">Kritik</option>
-              </select>
-            </div>
-            <div className="form-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setEditModal({ isOpen: false, indicator: null })}
-              >
-                Bekor qilish
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={confirmEdit}
-              >
-                Saqlash
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Delete Modal */}
-      <Modal
-        isOpen={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, indicator: null })}
-        title="O'chirishni tasdiqlash"
-        size="small"
-      >
-        {deleteModal.indicator && (
-          <div className="delete-confirm">
-            <p className="delete-message">
-              Quyidagi indikatorni o'chirishni xohlaysizmi?
-            </p>
-            <p className="delete-item-name">
-              "{deleteModal.indicator.name}"
-            </p>
-            <div className="form-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setDeleteModal({ isOpen: false, indicator: null })}
-              >
-                Bekor qilish
-              </button>
-              <button
-                className="btn btn-danger"
-                onClick={confirmDelete}
-              >
-                O'chirish
-              </button>
-            </div>
           </div>
         )}
       </Modal>
