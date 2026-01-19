@@ -846,7 +846,7 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
         isOpen={viewModal.isOpen}
         onClose={() => setViewModal({ isOpen: false, indicator: null })}
         title="Indikator ma'lumotlari"
-        size={viewModal.indicator?.category === 'talaba' ? 'large' : 'medium'}
+        size={viewModal.indicator?.category === 'talaba' ? 'fullpage' : 'medium'}
       >
         {viewModal.indicator && (
           <div className="view-details">
