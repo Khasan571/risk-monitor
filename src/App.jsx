@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import RiskTable from './components/RiskTable';
+import RiskTable, { StudentListSection } from './components/RiskTable';
+import { getStatusLabel } from './data/riskData';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import { riskCategories } from './data/riskData';
@@ -116,6 +117,12 @@ const CloseIcon = () => (
   </svg>
 );
 
+const ArrowLeftIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M19 12H5M12 19l-7-7 7-7"/>
+  </svg>
+);
+
 function App() {
   // Authentication state
   const [user, setUser] = useState(() => {
@@ -141,6 +148,9 @@ function App() {
   const [studentSearchResults, setStudentSearchResults] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
+  // Selected indicator for detail page
+  const [selectedIndicator, setSelectedIndicator] = useState(null);
 
   const [theme, setTheme] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -780,13 +790,64 @@ function App() {
               </div>
             )}
 
-            <RiskTable
-              indicators={filteredIndicators}
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              onUpdateIndicators={setIndicators}
-              onImportExcel={activeCategory === 'talaba' ? importStudentsFromExcel : null}
-            />
+            {/* Agar indikator tanlangan bo'lsa, detail page ko'rsatiladi */}
+            {selectedIndicator ? (
+              <div className="indicator-detail-page">
+                <div className="detail-page-header">
+                  <button
+                    className="back-button"
+                    onClick={() => setSelectedIndicator(null)}
+                  >
+                    <ArrowLeftIcon />
+                    <span>Orqaga</span>
+                  </button>
+                  <h2>{selectedIndicator.name}</h2>
+                </div>
+
+                <div className="indicator-info-card">
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <span className="info-label">Kategoriya</span>
+                      <span className="info-value">{selectedIndicator.category}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-label">Qiymat</span>
+                      <span className="info-value highlight">{selectedIndicator.value}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-label">Holat</span>
+                      <span className={`status-badge ${selectedIndicator.status}`}>
+                        <span className="status-dot"></span>
+                        {getStatusLabel(selectedIndicator.status)}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-label">Manba</span>
+                      <span className="info-value">{selectedIndicator.dataSource}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-label">Yangilangan</span>
+                      <span className="info-value">{selectedIndicator.lastUpdated}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Talabalar ro'yxati */}
+                <StudentListSection
+                  indicatorName={selectedIndicator.name}
+                  universityId={selectedIndicator.university}
+                />
+              </div>
+            ) : (
+              <RiskTable
+                indicators={filteredIndicators}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                onUpdateIndicators={setIndicators}
+                onImportExcel={activeCategory === 'talaba' ? importStudentsFromExcel : null}
+                onIndicatorClick={setSelectedIndicator}
+              />
+            )}
           </div>
         )}
       </main>

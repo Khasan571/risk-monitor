@@ -546,7 +546,7 @@ const StudentListSection = ({ indicatorName, universityId }) => {
   );
 };
 
-function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel }) {
+function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel, onIndicatorClick }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -729,7 +729,13 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
                 <tr
                   key={indicator.id}
                   className="clickable-row"
-                  onClick={() => setViewModal({ isOpen: true, indicator })}
+                  onClick={() => {
+                    if (indicator.category === 'talaba' && onIndicatorClick) {
+                      onIndicatorClick(indicator);
+                    } else {
+                      setViewModal({ isOpen: true, indicator });
+                    }
+                  }}
                 >
                   <td>
                     <div className="indicator-name">{indicator.name}</div>
@@ -752,7 +758,11 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
                       className="action-btn view"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewModal({ isOpen: true, indicator });
+                        if (indicator.category === 'talaba' && onIndicatorClick) {
+                          onIndicatorClick(indicator);
+                        } else {
+                          setViewModal({ isOpen: true, indicator });
+                        }
                       }}
                       title="Ko'rish"
                     >
@@ -841,12 +851,12 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
         </div>
       )}
 
-      {/* View Modal */}
+      {/* View Modal - faqat talaba bo'lmagan kategoriyalar uchun */}
       <Modal
         isOpen={viewModal.isOpen}
         onClose={() => setViewModal({ isOpen: false, indicator: null })}
         title="Indikator ma'lumotlari"
-        size={viewModal.indicator?.category === 'talaba' ? 'fullpage' : 'medium'}
+        size="medium"
       >
         {viewModal.indicator && (
           <div className="view-details">
@@ -881,14 +891,6 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
                 </div>
               </div>
             </div>
-
-            {/* Talaba kategoriyasi uchun talabalar ro'yxati */}
-            {viewModal.indicator.category === 'talaba' && (
-              <StudentListSection
-                indicatorName={viewModal.indicator.name}
-                universityId={viewModal.indicator.university}
-              />
-            )}
           </div>
         )}
       </Modal>
@@ -897,3 +899,4 @@ function RiskTable({ indicators, statusFilter, setStatusFilter, onImportExcel })
 }
 
 export default RiskTable;
+export { StudentListSection };
